@@ -1,6 +1,6 @@
-# **Sales & Customers Dashboard | Tableau Project**
+# **# Financial Consumer Complaint Analytics | SQL Server + Tableau Project**
 
-An end-to-end Tableau analytics project featuring two fully interactive, navigation-linked dashboards, a Sales Dashboard and a Customers Dashboard built from three relational datasets cleaned in SQL Server and Excel. The project follows the structured 4-step  dashboard design methodology from the Tableau Ultimate Course 
+An End-to-end analytics project turning raw CFPB consumer complaint data into a decision-ready Tableau dashboard for Bank of America's financial products, covering **62,516 complaints from 2017–2023**.
 
 ------------------------------------------------------------------
 
@@ -16,120 +16,103 @@ An end-to-end Tableau analytics project featuring two fully interactive, navigat
 
 ------------------------------------------------------------------------
 
-## **Project Overview**
+## **Business Questions**
 
 
-This project provides an executive-level view of sales performance and customer 
+1. Do consumer complaints show any seasonal patterns?
+2. Which products generate the most complaints, and what are their most common issues?
+3. How are complaints typically resolved?
+4. What can we learn from complaints with untimely responses?
 
-behaviour across multiple years, product categories, and geographies. Both dashboards 
+## **Architecture**
 
-share a single filter panel and are connected via navigation buttons, allowing users to 
+## Built on a **Bronze → Silver → Gold medallion architecture** in SQL Server.
 
-switch between the Sales view and the Customers view instantly.
+```
+CFPB Source CSV
+      │
+      ▼
+┌─────────────┐   BULK INSERT (FORMAT='CSV', FIELDQUOTE='"')
+│   Bronze    │   Raw ingestion — schema & completeness checks
+│  Layer      │   Bronze.Customer_Complaints_Raw (12 columns, matches source exactly)
+└─────────────┘
+      │
+      ▼
+┌─────────────┐   Cleaning, standardization, correctness checks
+│   Silver    │   Derived columns: response_lag_days, is_timely_response,
+│  Layer      │   product_category, issue_category, resolution_category, us_region
+└─────────────┘
+      │
+      ▼
+┌─────────────┐   Business-ready aggregation & integration
+│    Gold     │   Gold.Fact_Customer_Complaints — analysis-ready fact table
+│  Layer      │   feeding directly into Tableau
+```
 
-## **Sales Dashboard - Features & KPIs**
+**Why medallion:** each layer has a single responsibility: Bronze preserves raw fidelity for auditability, Silver isolates all cleaning/business logic in one place, and Gold stays lean and purpose-built for BI consumption, so Tableau never has to guess at data quality.
 
-	  •	Total Sales KPI - $733K with ▲20.36% year-on-year change vs. Prior Year, monthly sparkline with highest and lowest month dots
+## **Tableau Dashboard**
+
+Ten visualizations, each mapped to a specific measure/dimension combination and a specific business question:
+
+| # | Visualization | Dimension(s) | Measure(s) | Answers |
+|---|---|---|---|---|
+| 1 | KPI Tiles | — | `COUNTD(complaint_id)`, `AVG(is_timely_response)`, `AVG(response_lag_days)`, `COUNTD(product)`, % Monetary Relief | Headline performance |
+| 2 | Butterfly Chart | `resolution_category` | `Timely Complaints`, `Untimely Complaints` (calculated fields) | How complaints resolve, by timeliness |
+| 3 | Running Total | `submission_year_month` | `COUNTD(complaint_id)`, Running Total | Seasonal/cumulative trend |
+| 4 | Bar + Line Combo | `submission_month_name` | `COUNTD(complaint_id)`, `AVG(response_lag_days)` | Seasonality of volume vs. lag |
+| 5 | Scatter Plot | `product_category`, `issue_category` | `COUNTD(complaint_id)`, `AVG(is_timely_response)` | Volume vs. response quality by product/issue |
+| 6 | Bump Chart | `submission_year_month` (Quarter), `issue_category` | `AVG(response_lag_days)`, Rank | Which issues stay chronically slow |
+| 7 | Donut Chart | `issue_category` / `resolution_category` | `COUNTD(complaint_id)` | Complaint/resolution mix |
+| 8 | KPI Highlight Table | `product_category`, `resolution_category` | `AVG(is_timely_response)` | Timeliness by product × resolution |
+| 9 | Global Filters | `product_category`, `us_region` | — | Cross-filtering across all views |
+| 10 | Regional Butterfly | `us_region` | `Timely Complaints`, `Untimely Complaints` | Geographic timeliness comparison |
+
+**Calculated fields used:**
+```
+Number of Complaints  = COUNTD([complaint_id])
+Timely Complaints     = SUM(IF [is_timely_response] = 1 THEN 1 ELSE 0 END)
+Untimely Complaints   = SUM(IF [is_timely_response] = 0 THEN 1 ELSE 0 END)
+% Timely              = AVG([is_timely_response])
+% Monetary Relief     = SUM(IF [resolution_category] = 'Monetary Relief' THEN 1 ELSE 0 END) / COUNTD([complaint_id])
+```
+
+---
+
+## Key Insights
+
+- **93.8%** of complaints receive a timely response, with an average response lag of **1.2 days** overall.
+- **Credit Reporting** and **Checking/Savings Accounts** are the highest-volume product categories, far ahead of other products.
+- **65.1%** of complaints close with an explanation only; **23.5%** result in monetary relief; **8.5%** in non-monetary relief.
+- Ranking issue categories by response lag on a quarterly basis shows that slow resolution is **not evenly distributed** — a subset of issue categories persistently rank at the bottom, suggesting targeted (not blanket) process fixes would have the most impact.
+- The scatter plot of complaint volume against timely-response rate highlights specific product/issue combinations that are both high-volume and below-average on responsiveness — the clearest candidates for operational attention.
+
+---
+
+## Tech Stack
+
+- **SQL Server**; medallion architecture (Bronze/Silver/Gold), data ingestion, cleaning, and business logic
+- **Tableau**; dashboard design and interactive visualization
+- **Data Source**; [Consumer Financial Protection Bureau (CFPB)](https://www.consumerfinance.gov/data-research/consumer-complaints/) complaint data, 2017-2023
+
+---
+
+## How to Reproduce
+
+1. Restore/create the `Bronze`, `Silver`, and `Gold` schemas in SQL Server.
+2. Run the scripts in `sql/` in order (`01` → `04`).
+3. Point Tableau at `Gold.Fact_Customer_Complaints` (or export to the provided `Gold_Fact_Customer_Complaints.xlsx`).
+4. Open `tableau/Financial_Consumer_Complaint_Dashboard.twbx` to explore the workbook, or rebuild each sheet using the measure/dimension table above
 	  
-	  •	Total Quantity KPI — $12K with ▲26.83% vs. PY
-	  
-	  •	Total Profit KPI — $93K with ▲14.24% vs. PY
+•	Sales & Profit Performance by Sub-Category: dual horizontal bar chart showing sales (dark) vs. profit/loss (blue/orange) per product line; Tables and Bookcases highlighted as loss making
 
-•	Sales & Profit Performance by Sub-Category - dual horizontal bar chart showing sales (dark) vs. profit/loss (blue/orange) per product line; Tables and Bookcases highlighted as loss-making
+•	Sales and Profit Trends Over Time: dual step-line chart with dashed average reference lines (Avg. $4K sales, Avg. $1K profit) showing above/below average periods
 
-•	Sales and Profit Trends Over Time — dual step-line chart with dashed average reference lines (Avg. $4K sales, Avg. $1K profit) showing above/below average periods
-
-## **Customers Dashboard - Features & KPIs**
-
-	•	Total Customers KPI: 573 with ▼3.70% vs. PY, monthly sparkline
-	
-	•	Total Orders KPI: ▲7.12% vs. PY with trend line
-	
-	•	Total Sales KPI: ▲0.90% vs. PY
-	
-	•	Customer Distribution by Number of Orders — bar chart showing 262 customers placed 1 order, 199 placed 2, tapering to 2 customers who placed 6 orders
-	
-	•	Top 10 Customers by Profit: ranked table showing customer name and most recent order date
-	
-	•	Dynamic filter panel: Year, Category, Sub-Category, Region, State, City
-
-# **Navigation & Interactivity**
-
-Both dashboards include navigation icon buttons in the top right corner. Clicking the bar chart icon navigates to the Sales Dashboard. Clicking the people icon navigates to the Customers Dashboard. The filter panel is accessible from both dashboards via the funnel icon. This creates a seamless single-project experience across two dashboard views.
-
-# **Tools & Technologies**
-
-	•	**Microsoft Excel:** Source data exploration and initial validation of all three datasets
-	
-	•	**SQL Server:** Data cleaning, joining Customers, Products, and Orders tables, data type validation, null handling, and transformation
-	
-	•	**Tableau Desktop:** All visualisations, calculated fields, KPI design, sparklines, container layout, navigation button actions, and dashboard assembly
 
 ## **Datasets**
 
-	•	**Customer.csv:** Customer ID, customer name, segment, region, state, city
+	•	**Financial Consumer Complaints.csv:** Complaint ID,	Submitted via,	Date submitted,	Date received,	State,	Product	Sub-product	Issue,	Sub-issue,	Company public response,	Company response to consumer,	Timely response
 	
-	•	**Products.csv:** Product ID, category, sub-category, product name
-	
-	•	**Orders.csv:** Order ID, customer ID, product ID, order date, sales, profit, quantity
-
-## **Dashboard Design Process**
-
-**This project followed the 4-step dashboard design methodology:**
-
-	Step 1: Analyse Requirements: Defined user stories and KPI requirements for both dashboards, chose appropriate chart types (sparklines, dual bar charts, step-line charts, ranked tables), sketched mockups, and selected the blue/orange colour palette.
-	   
-	Step 2: Build Data Source: Connected all three CSV files in Tableau, created the data model by joining on Customer ID and Product ID, renamed fields and tables, checked data types, and explored the data.
-	   
-	Step 3: Build Charts: Created and tested all calculated fields, built each individual chart, then formatted each by removing gridlines, cleaning axis headers, applying consistent colours, and adding tooltips.
-	   
-	Step 4: Build Dashboard: Drew container mockups for both dashboards, created the vertical main container with horizontal rows for title, KPIs, and charts, added a separate filter panel container, distributed objects evenly, set inner/outer padding, added legends, added navigation button actions, and added icons.
-   
-## **Key Calculated Fields in Tableau**
-
-	•	Total Sales: SUM([Sales])
-	
-	•	Total Profit: SUM([Profit])
-	
-	•	Total Quantity: SUM([Quantity])
-	
-	•	Total Customers: COUNTD([Customer ID])
-	
-	•	Total Orders: COUNTD([Order ID])
-	
-	•	CY (Current Year): Filtered by selected year parameter
-	
-	•	PY (Prior Year): LOOKUP(SUM([Sales]), -1) computed along Year dimension
-	
-	•	YoY % Change: (CY Value - PY Value) / ABS(PY Value), formatted as percentage with ▲▼ indicator
-	
-	•	Top 10 Customers by Profit: RANK(SUM([Profit])) as a table calculation
-
-## **Project File Structure**
-
-	•	Sales_Dashboard.png: Sales Dashboard screenshot
-	
-	•	Customer_Dashboard.png: Customers Dashboard screenshot
-	
-	•	Customer.csv: Customer dataset
-	
-	•	Products.csv: Products dataset
-	
-	•	Orders.csv: Orders dataset
-	
-	•	README.md: Project documentation
-
-## **How to Explore This Project
-
-	> Clone the repository: git clone https://github.com/YOUR-USERNAME/sales-customers-dashboard.git
-		
-	> Open Tableau Desktop and connect to Customer.csv, Products.csv, and Orders.csv.
-	    
-	> Join the tables: Orders joined to Customers on Customer ID, Orders joined to Products on Product ID.
-	    
-	> Create the calculated fields listed above.
-	    
-	> Build the Sales Dashboard first, then the Customers Dashboard, then add navigation button actions between them.
     
 ## **Acknowledgement**
 
