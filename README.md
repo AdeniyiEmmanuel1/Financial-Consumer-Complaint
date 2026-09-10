@@ -6,15 +6,10 @@ An End-to-end analytics project turning raw CFPB consumer complaint data into a 
 
 ## **Dashboard Previews**
 
-![Dashboard Screenshot](https://github.com/AdeniyiEmmanuel1/customers-dashboard-/blob/main/Sales%20Dashboard.png)
+![Dashboard Screenshot](https://github.com/AdeniyiEmmanuel1/Financial-Consumer-Complaint/blob/main/Consumer%20Complaint.png)
 
 ---------------------------------------------------------------------
 
-![Dashboard Screenshot](https://github.com/AdeniyiEmmanuel1/customers-dashboard-/blob/main/Customer%20Dashboard.png)
-
-
-
-------------------------------------------------------------------------
 
 ## **Business Questions**
 
